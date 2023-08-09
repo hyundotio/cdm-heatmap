@@ -43,3 +43,19 @@
   right: 1rem;
   z-index: 9;
 }
+
+.toggle-layer{
+  position: fixed;
+  top: 3rem;
+  right: 1rem;
+  z-index: 9;
+}
+
+#root {
+  overflow: hidden;
+  height: 100%;
+  position: fixed;
+  width: 100%;
+  top: 0;
+  left: 0;
+}

@@ -4,6 +4,7 @@ import { DeckGL } from 'deck.gl';
 import React from 'react';
 import { Map, ViewState } from 'react-map-gl';
 import { debounce } from 'lodash';
+import {ScatterplotLayer} from '@deck.gl/layers';
 import {HeatmapLayer, ContourLayer} from '@deck.gl/aggregation-layers';
 import {COORDINATE_SYSTEM} from '@deck.gl/core';
 
@@ -34,6 +35,55 @@ function App({
   const [initialViewState, setInitialViewState] = React.useState(INITIAL_VIEW_STATE);
   const [deckViewState, setDeckViewState] = React.useState(null);
   const [usePcWeight, setUsePcWeight] = React.useState(false);
+  const [useScatterplotLayer, setScatterplotLayer] = React.useState(false);
+
+  const scatterplotLayer = new ScatterplotLayer({
+    id: 'scatterplot-layer',
+    data,
+    pickable: true,
+    opacity: 0.8,
+    stroked: true,
+    filled: true,
+    radiusScale: 6,
+    radiusMinPixels: 6,
+    radiusMaxPixels: 100,
+    lineWidthMinPixels: 1,
+    getPosition: d => [d.position.longitude, d.position.latitude, d.position.altitude],
+    getRadius: d => 12,
+    getLineColor: d => {
+      const val = parseFloat(d.pc);
+      const alpha = useScatterplotLayer ? 255 : 0;
+      let color = [0,0,0,alpha];
+      if (!isNaN(val)) {
+        const match = d.pc.split('.')[1].match(/^0+/);
+        const level = 4 - parseInt(match ? match[0].length : 0);
+        if (level === 3) color = [255,255,255,alpha];
+      } else {
+        color = [255,255,255,0]
+      }
+      return color
+    },
+    getFillColor: d => {
+      const alpha = useScatterplotLayer ? 255 : 0;
+      const val = parseFloat(d.pc);
+      let color = [255,255,178,alpha];
+      if (!isNaN(val)) {
+        const match = d.pc.split('.')[1].match(/^0+/);
+        const level = 4 - parseInt(match ? match[0].length : 0);
+        if (level === 1) color = [254,217,118,alpha];
+        if (level === 2) color = [253,141,60,alpha];
+        if (level === 3) color = [189,0,38,alpha];
+      } else {
+        color = [255,255,255,0]
+      }
+      return color
+    },
+    updateTriggers: {
+      getLineColor: useScatterplotLayer,
+      getFillColor: useScatterplotLayer
+    }
+  });
+
 
   const heatmapLayer = new HeatmapLayer({
     data,
@@ -56,7 +106,9 @@ function App({
     radiusPixels,
     intensity,
     threshold,
+    visible: !useScatterplotLayer,
     updateTriggers: {
+      visible: useScatterplotLayer,
       getWeight: usePcWeight
     }
   });
@@ -69,12 +121,29 @@ function App({
 
   return (
     <div className="App">
-      <button className="toggle-pc" onClick={() => setUsePcWeight(v => !v)}>{usePcWeight ? 'Turn off Pc Weight' : 'Turn on Pc Weight'}</button>
+      <button className="toggle-pc" disabled={useScatterplotLayer} onClick={() => setUsePcWeight(v => !v)}>{usePcWeight ? 'Turn off Pc Weight' : 'Turn on Pc Weight'}</button>
+      <button className="toggle-layer" onClick={() => setScatterplotLayer(v => !v)}>{useScatterplotLayer ? 'View heatmap' : 'View scatterplot'}</button>
       <DeckGL
         initialViewState={initialViewState}
         controller={true}
-        layers={[heatmapLayer]}
+        layers={[heatmapLayer, scatterplotLayer]}
         onViewStateChange={(deckState) => debouncedSetViewDeckState(deckState.viewState)}
+        getTooltip={({object}) => {
+          if (object) {
+            return {
+              html: (
+                `
+                <div>CDM ID: ${object.cdmId}</div>
+                <div>PC: ${parseFloat(object.pc).toExponential().toUpperCase()}</div>
+                <div>MD: ${object.md}m</div>
+                <div>Object 1: ${object.rso1ID}, ${object.rso1Name} (${object.rso1Type})</div>
+                <div>Object 2: ${object.rso2ID}, ${object.rso2Name} (${object.rso2Type})</div>
+                <div>TCA: ${object.tca}</div>
+                `
+              )
+            }
+          }
+        }}
       >
         <Map
           mapboxAccessToken={MAPBOX_ACCESS_TOKEN}
